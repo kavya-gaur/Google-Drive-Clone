@@ -1,15 +1,12 @@
 import React, { useContext, useState, useEffect, createContext } from "react";
 import {
   getAuth,
-  createUserWithEmailAndPassword,
   onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut,
-  reauthenticateWithCredential, // Import the necessary function
-  EmailAuthProvider,
-  updateEmail,
-  updatePassword, // Import the necessary module
+  setPersistence,
+  browserLocalPersistence, // Import the necessary module
 } from "firebase/auth"; // Import the appropriate module for getAuth function
+import { useNavigate } from "react-router-dom";
+import Cookies from "js-cookie";
 
 const AuthContext = createContext();
 
@@ -18,35 +15,33 @@ export function useAuth() {
 }
 
 export function AuthProvider({ children, app }) {
-  const [currentUser, setCurrentUser] = useState();
-  const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState("");
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const auth = getAuth(app);
+  setPersistence(auth, browserLocalPersistence);
 
-  function signup(email, password) {
-    return createUserWithEmailAndPassword(auth, email, password);
-  }
-
-  function login(email, password) {
-    return signInWithEmailAndPassword(auth, email, password);
-  }
-
-  function logout() {
-    return signOut(auth);
-  }
-
-  function updateUserEmail(email) {
-    return updateEmail(currentUser, email);
-  }
-
-  function updateUserPassword(password) {
-    return updatePassword(currentUser, password);
+  function updateUser(user) {
+    setCurrentUser(user);
+    setLoading(true);
   }
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-      setLoading(false);
+      const saveduser = Cookies.get("access_token");
+
+      try {
+        const parsedUser = JSON.parse(saveduser);
+        setCurrentUser(parsedUser);
+        setLoading(true);
+        if (!parsedUser) {
+          navigate("/login");
+        }
+      } catch (error) {
+        setLoading(true);
+        navigate("/login");
+      }
     });
 
     return unsubscribe;
@@ -54,18 +49,15 @@ export function AuthProvider({ children, app }) {
 
   const value = {
     currentUser,
-    signup,
-    login,
-    logout,
-    updateUserEmail, // Expose the function
-    updateUserPassword, // Expose the function
-    reauthenticateWithCredential, // Expose the function
-    EmailAuthProvider, // Expose the module
+    setCurrentUser,
+    setLoading,
+    loading,
+    updateUser,
   };
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {!loading ? "Loading" : children}
     </AuthContext.Provider>
   );
 }
